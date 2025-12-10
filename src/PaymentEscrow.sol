@@ -35,7 +35,7 @@ contract PaymentEscrow is Ownable {
     /**
      * @dev Sets the ERC20 token address and the arbiter address.
      */
-    constructor(address _token, address _arbiter) Ownable(_arbiter) {
+    constructor(address _token) Ownable(msg.sender) {
         require(_token != address(0), "Invalid token address");
         token = IERC20(_token);
     }
