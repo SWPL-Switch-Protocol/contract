@@ -24,7 +24,7 @@ contract PaymentEscrow is Ownable {
         State state;
     }
 
-    // 주문 ID => 주문 정보
+    // Order ID => Order Info
     mapping(uint256 => Order) public orders;
 
     event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
@@ -51,7 +51,7 @@ contract PaymentEscrow is Ownable {
         require(amount > 0, "Amount must be greater than 0");
         require(orders[orderId].amount == 0, "Order ID already exists");
 
-        // 상태 저장
+        // Store state
         orders[orderId] = Order({
             buyer: msg.sender,
             seller: seller,
@@ -59,7 +59,7 @@ contract PaymentEscrow is Ownable {
             state: State.Created
         });
 
-        // 토큰 전송 (Buyer -> Escrow)
+        // Transfer tokens (Buyer -> Escrow)
         token.safeTransferFrom(msg.sender, address(this), amount);
 
         emit Deposited(orderId, msg.sender, seller, amount);
@@ -77,7 +77,7 @@ contract PaymentEscrow is Ownable {
 
         order.state = State.Released;
 
-        // 토큰 전송 (Escrow -> Seller)
+        // Transfer tokens (Escrow -> Seller)
         token.safeTransfer(order.seller, order.amount);
 
         emit Released(orderId, order.seller, order.amount);
@@ -95,7 +95,7 @@ contract PaymentEscrow is Ownable {
 
         order.state = State.Refunded;
 
-        // 토큰 전송 (Escrow -> Buyer)
+        // Transfer tokens (Escrow -> Buyer)
         token.safeTransfer(order.buyer, order.amount);
 
         emit Refunded(orderId, order.buyer, order.amount);
