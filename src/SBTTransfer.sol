@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Implementation of non-transferable NFT (SBT).
  *      Based on OpenZeppelin v5.0.0+ ERC721.
  */
-contract SBTReview is ERC721, ERC721URIStorage, ERC721Burnable, Ownable {
+contract SBTTransfer is ERC721, ERC721URIStorage, ERC721Burnable, Ownable {
     uint256 private _nextTokenId;
     string public constant description = "This SoulBound Token (SBTT) serves as a proof of transfer.";
 
