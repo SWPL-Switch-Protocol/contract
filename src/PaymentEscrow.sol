@@ -3,12 +3,14 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PaymentEscrow.sol
- * @dev 구매자가 자금을 맡기고, 구매 확정 시 판매자에게 전달하는 간단한 에스크로 컨트랙트입니다.
+ * @dev A simple escrow contract where buyers deposit funds, and funds are released to the seller upon confirmation.
+ *      The arbiter (Owner) can intervene in case of disputes.
  */
-contract PaymentEscrow {
+contract PaymentEscrow is Ownable {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable token;
@@ -28,20 +30,21 @@ contract PaymentEscrow {
     event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
     event Released(uint256 indexed orderId, address indexed seller, uint256 amount);
     event Refunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
+    event DisputeResolved(uint256 indexed orderId, address indexed winner, uint256 amount);
 
     /**
-     * @dev 에스크로에서 사용할 ERC20 토큰 주소를 설정합니다.
+     * @dev Sets the ERC20 token address and the arbiter address.
      */
-    constructor(address _token) {
+    constructor(address _token, address _arbiter) Ownable(_arbiter) {
         require(_token != address(0), "Invalid token address");
         token = IERC20(_token);
     }
 
     /**
-     * @dev 구매자가 자금을 예치합니다. (사전에 approve 필요)
-     * @param orderId 주문 식별자 (중복 불가)
-     * @param seller 판매자 주소
-     * @param amount 예치할 금액
+     * @dev Deposits funds into the escrow. (Requires prior approval)
+     * @param orderId Order identifier (must be unique)
+     * @param seller Seller address
+     * @param amount Amount to deposit
      */
     function deposit(uint256 orderId, address seller, uint256 amount) external {
         require(seller != address(0), "Invalid seller address");
@@ -63,8 +66,8 @@ contract PaymentEscrow {
     }
 
     /**
-     * @dev 구매자가 물품 수령을 확인하고 대금을 판매자에게 지급합니다.
-     * @param orderId 주문 식별자
+     * @dev Releases funds to the seller upon buyer confirmation.
+     * @param orderId Order identifier
      */
     function release(uint256 orderId) external {
         Order storage order = orders[orderId];
@@ -81,8 +84,8 @@ contract PaymentEscrow {
     }
 
     /**
-     * @dev 판매자가 거래를 취소하고 대금을 구매자에게 환불합니다.
-     * @param orderId 주문 식별자
+     * @dev Refunds funds to the buyer upon seller cancellation.
+     * @param orderId Order identifier
      */
     function refund(uint256 orderId) external {
         Order storage order = orders[orderId];
@@ -99,7 +102,30 @@ contract PaymentEscrow {
     }
     
     /**
-     * @dev 주문 정보를 조회합니다.
+     * @dev Resolves a dispute by transferring funds to the receiver. Only the owner (arbiter) can call this.
+     * @param orderId Order identifier
+     * @param receiver Address to receive the funds (Must be Buyer or Seller)
+     */
+    function resolveDispute(uint256 orderId, address receiver) external onlyOwner {
+        Order storage order = orders[orderId];
+        require(order.state == State.Created, "Invalid order state");
+        require(receiver == order.buyer || receiver == order.seller, "Winner must be buyer or seller");
+
+        if (receiver == order.seller) {
+            order.state = State.Released;
+            token.safeTransfer(order.seller, order.amount);
+            emit Released(orderId, order.seller, order.amount);
+        } else {
+            order.state = State.Refunded;
+            token.safeTransfer(order.buyer, order.amount);
+            emit Refunded(orderId, order.buyer, order.amount);
+        }
+        
+        emit DisputeResolved(orderId, receiver, order.amount);
+    }
+    
+    /**
+     * @dev Returns the order details.
      */
     function getOrder(uint256 orderId) external view returns (Order memory) {
         return orders[orderId];
